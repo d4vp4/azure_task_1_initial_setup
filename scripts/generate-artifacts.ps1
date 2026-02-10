@@ -73,4 +73,5 @@ $artifactsConfig = @{
     resourcesTemplate = "$resourcesTemplateURL"
 }
 $artifactsConfig | ConvertTo-Json | Out-File -FilePath $artifactsConfigPath -Force
-# fix
+Write-Output "Artifacts generated and artifacts.json updated."
+Write-Output "Reminder: run 'git add artifacts.json' and commit the changes as required."

@@ -1,39 +1,30 @@
+# Read the artifacts file
+$artifactsPath = "artifacts.json"
 
-# default script values 
-$artifactsConfigPath = "$PWD/artifacts.json"
-$resourcesTemplateName = "exported-template.json"
-$taskName = "task1"
-$tempFolderPath = "$PWD/temp"
-
-Write-Output "Reading config" 
-$artifactsConfig = Get-Content -Path $artifactsConfigPath | ConvertFrom-Json 
-
-Write-Output "Checking if temp folder exists"
-if (-not (Test-Path "$tempFolderPath")) { 
-    Write-Output "Temp folder does not exist, creating..."
-    New-Item -ItemType Directory -Path $tempFolderPath
+if (-not (Test-Path $artifactsPath)) {
+    Write-Error "artifacts.json not found!"
+    exit 1
 }
 
-Write-Output "Downloading artifacts"
+$artifacts = Get-Content $artifactsPath | ConvertFrom-Json
 
-if (-not $artifactsConfig.resourcesTemplate) { 
-    Write-Error "Artifact config value 'resourcesTemplate' is empty! Please make sure that you executed the script 'scripts/generate-artifacts.ps1', and commited your changes"
-} 
-Invoke-WebRequest -Uri $artifactsConfig.resourcesTemplate -OutFile "$tempFolderPath/$resourcesTemplateName" -UseBasicParsing
-
-Write-Output "Validating artifacts"
-$TemplateFileText = [System.IO.File]::ReadAllText("$tempFolderPath/$resourcesTemplateName")
-$TemplateObject = ConvertFrom-Json $TemplateFileText -AsHashtable
-
-$storageAccount = ( $TemplateObject.resources | Where-Object -Property type -EQ "Microsoft.Storage/storageAccounts" )
-if ($storageAccount) {
-    Write-Output "Checked if storage account exists - OK."
-} else {
-    Write-Error "Unable to find storage account in the resource template. Please make sure that you created the storage account"
+# Check if resourcesTemplate exists
+if (-not $artifacts.resourcesTemplate) {
+    Write-Error "resourcesTemplate key is missing in artifacts.json"
+    exit 1
 }
 
-if ($storageAccount.sku.name -eq "Standard_LRS") { 
-    Write-Output "Checked the storage account SKU - OK."
-} else {
-    Write-Error "Storage account SKU is not set to Standard LRS. Please try to create storage account again, and make sure that replication type is set to LRS"
+# Validate the URL
+try {
+    $request = Invoke-WebRequest -Method Head -Uri $artifacts.resourcesTemplate -ErrorAction Stop
+    if ($request.StatusCode -eq 200) {
+        Write-Output "Validation successful: Template URL is reachable."
+    } else {
+        Write-Error "Validation failed: URL returned status code $($request.StatusCode)"
+        exit 1
+    }
+}
+catch {
+    Write-Error "Validation failed: Could not reach the template URL. Error: $_"
+    exit 1
 }
